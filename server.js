@@ -1,44 +1,53 @@
 import express from "express";
 import cors from "cors";
-import fetch from "node-fetch";
+import dotenv from "dotenv";
+import cohere from "cohere-ai";
 
+dotenv.config();
 const app = express();
+const PORT = process.env.PORT || 3000;
+
 app.use(cors());
 app.use(express.json());
 
-// Cohere API key (secure)
-const COHERE_API_KEY = process.env.COHERE_API_KEY;
+// Initialize Cohere client
+cohere.init(process.env.COHERE_API_KEY);
 
-// Models mapping
-const MODEL_MAP = {
-  "flompy_ai": "command-r-plus",   // Cohere ka pehla model
-  "flompy_ai_2": "command-r"       // Cohere ka doosra model
-};
+// Root check
+app.get("/", (req, res) => {
+  res.send("✅ Flompy Backend 2 running!");
+});
 
-// Chat endpoint
+// Chat API
 app.post("/api/chat", async (req, res) => {
   const { message, uid, model } = req.body;
-  try {
-    const chosenModel = MODEL_MAP[model] || MODEL_MAP["flompy_ai"];
-    const response = await fetch("https://api.cohere.ai/v1/chat", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${COHERE_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: chosenModel,
-        messages: [{ role: "user", content: message }]
-      })
-    });
 
-    const data = await response.json();
-    res.json({ reply: data.text || data.reply || "No reply." });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ reply: "⚠️ Backend error: " + err.message });
+  try {
+    let reply = "⚠️ Unknown model.";
+
+    if (model === "flompy_ai") {
+      // old model
+      const response = await cohere.chat({
+        model: "command-xlarge-nightly",
+        message,
+      });
+      reply = response.text;
+    } else if (model === "flompy_ai_2") {
+      // new model
+      const response = await cohere.chat({
+        model: "command-r-plus", // 🔥 better model
+        message,
+      });
+      reply = response.text;
+    }
+
+    res.json({ reply });
+  } catch (error) {
+    console.error("Chat error:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("✅ Backend running on port " + PORT));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
